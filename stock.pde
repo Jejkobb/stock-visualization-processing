@@ -3,10 +3,10 @@ import java.text.*;
 
 int width = 1920, height = 1080, framerate = 144, filling = 0, colorIndex, offsetIndex = 0, strokeW = 5;
 float count = 0, countMax = 100, interval = 0;
-float ypos, variance, startingPrice, price = 149.81, stretch = 25;
+float ypos, variance, startingPrice, price = 15, stretch = 25;
 float targetY, easing = 0.1, yoffset = 0, xoffset = 0, cameraOffset = -(height/2), scaleY = 1;
-float multiplier, priceChangeDivider;
-boolean hideEarlier = true;
+float multiplier, priceChangeDivider, calculatedPrice, bottomLine;
+boolean hideEarlier = true, hideBottom = false;
 color[] colors = new color[4];
 
 ArrayList<Float> nodes = new ArrayList();
@@ -29,14 +29,21 @@ void setup() {
             nodes.add(i, random(nodes.get(i-1)-variance, nodes.get(i-1)+variance));
         }
     }
+
+    bottomLine = nodes.get(0);
+
     colors[0] = color(98,235,52); // GREEN
     colors[1] = color(3,161,252); // BLUE
     colors[2] = color(235,52,82); // RED
     colors[3] = color(255,255,255); // WHITE
 
     // Price movement multipliers
+    /*
+    $150 = {1, 1000}
+    $15 = {1, 100}
+    */
     multiplier = 1;
-    priceChangeDivider = 100;
+    priceChangeDivider = 1000;
 }
 
 String convertFloatToPrice(float n){
@@ -62,15 +69,25 @@ void keyPressed() {
         colorIndex = colorIndex == colors.length-1 ? 0 : colorIndex+1;
     }else if(keyCode == 37){ // LEFT ARROW
         colorIndex = colorIndex == 0 ? colors.length-1 : colorIndex-1;
-    }else if(keyCode == 10){
+    }else if(keyCode == 10){ // ENTER
         hideEarlier = !hideEarlier;
+    }else if(keyCode == 40){ // DOWN
+        scaleY -= 0.1;
+    }else if(keyCode == 38){ // UP
+        scaleY += 0.1;
+    }else if(keyCode == 17){
+        startingPrice = (nodes.get(0) - ypos)/priceChangeDivider + price;
+        bottomLine = ypos;
+    }else if(keyCode == 16){
+        hideBottom = !hideBottom;
     }
+    //print(keyCode);
 }
 
 void repeatLine(color s, color e, float x, float y, float xx, float yy){
     float scale = 75;
     float m = strokeW;
-    strokeWeight(strokeW*2);
+    strokeWeight(strokeW*2.5);
     for (int i = 1; i < int(scale); i++) {
         stroke(lerpColor(s, e, i/scale));
         line(x,y+i*m,xx,yy+i*m);
@@ -85,12 +102,38 @@ void drawFill(color c, float x, float y, float xx, float yy){
     s.noStroke();
     s.vertex(x, y);
     s.vertex(xx, yy);
-    if(filling == 3){
-        s.vertex(xx, nodes.get(offsetIndex)-(yoffset + cameraOffset));
-        s.vertex(x, nodes.get(offsetIndex)-(yoffset + cameraOffset));
-    }else{
-        s.vertex(xx, height);
-        s.vertex(x, height);
+    s.vertex(xx, bottomLine-(yoffset + cameraOffset));
+    s.vertex(x, bottomLine-(yoffset + cameraOffset));
+    s.endShape(CLOSE);
+    shape(s);
+}
+
+void drawFillOptimized(color c){
+    PShape s;
+    s = createShape();
+    s.beginShape();
+    s.fill(c);
+    s.noStroke();
+    for(int i = 0; i < nodes.size(); i++){
+        int p = i+1;
+        if(i > offsetIndex && hideEarlier){
+            s.vertex(width/2-(i*stretch)-xoffset, height);
+            s.vertex(width/2, height);
+            s.vertex(width/2, ypos-(yoffset + cameraOffset));
+            break;
+        }
+        if(i == 0){
+            s.vertex(width/2-(p*stretch)-xoffset, (nodes.get(i)*scaleY)-(yoffset + cameraOffset));
+            s.vertex(width/2, ypos-(yoffset + cameraOffset));
+        }else{
+            s.vertex(width/2-((p-1)*stretch)-xoffset, (nodes.get(i-1)*scaleY)-(yoffset + cameraOffset));
+            s.vertex(width/2-(p*stretch)-xoffset, (nodes.get(i)*scaleY)-(yoffset + cameraOffset));
+        }
+        if(i == nodes.size()-1){
+            s.vertex(width/2-(i*stretch)-xoffset, height);
+            s.vertex(width/2, height);
+            s.vertex(width/2, ypos-(yoffset + cameraOffset));
+        }
     }
     s.endShape(CLOSE);
     shape(s);
@@ -125,7 +168,7 @@ void draw() {
     background(0);
 
     //DRAW UNDER LINES
-    if(filling > 0){
+    if(filling == 1 || filling == 3){
         for(int i = 0; i < nodes.size(); i++){
             int p = i+1;
             float m = 0.5;
@@ -146,10 +189,18 @@ void draw() {
                 }
             }
         }
+    }else if(filling == 2){
+        drawFillOptimized(divideColor(colors[colorIndex],0.5));
     }
 
     //BOTTOM LINE
-    dottedLine(color(255*0.33), 100, 0, nodes.get(offsetIndex)-(yoffset + cameraOffset), width, nodes.get(offsetIndex)-(yoffset + cameraOffset));
+    if(hideBottom){
+        dottedLine(color(255*0.33), 175, 0, bottomLine-(yoffset + cameraOffset), width, bottomLine-(yoffset + cameraOffset));
+    }
+
+    if(hideEarlier && nodes.get(offsetIndex)-(yoffset + cameraOffset) != bottomLine-(yoffset + cameraOffset)){
+        dottedLine(colors[colorIndex], 50, width/2-((offsetIndex+1)*stretch)-xoffset,nodes.get(offsetIndex)-(yoffset + cameraOffset), width/2-((offsetIndex+1)*stretch)-xoffset-1000, nodes.get(offsetIndex)-(yoffset + cameraOffset));
+    }
 
     //DRAW NODES
     for(int i = 0; i < nodes.size(); i++){
@@ -160,9 +211,9 @@ void draw() {
             break;
         }
         if(i == 0){
-            line(width/2-(p*stretch)-xoffset, nodes.get(i)-(yoffset + cameraOffset) * scaleY, width/2, ypos-(yoffset + cameraOffset));
+            line(width/2-(p*stretch)-xoffset, (nodes.get(i)*scaleY)-(yoffset + cameraOffset), width/2, ypos-(yoffset + cameraOffset));
         }else{
-            line(width/2-(p*stretch)-xoffset, nodes.get(i)-(yoffset + cameraOffset) * scaleY, width/2-((p-1)*stretch)-xoffset, nodes.get(i-1)-(yoffset + cameraOffset));
+            line(width/2-(p*stretch)-xoffset, (nodes.get(i)*scaleY)-(yoffset + cameraOffset), width/2-((p-1)*stretch)-xoffset, (nodes.get(i-1)*scaleY)-(yoffset + cameraOffset));
         }
     }
 
@@ -170,7 +221,7 @@ void draw() {
     fill(255);
     textAlign(LEFT);
     textSize(100);
-    float calculatedPrice = (nodes.get(0) - ypos)/priceChangeDivider + price;
+    calculatedPrice = (nodes.get(0) - ypos)/priceChangeDivider + price;
     text("$" + convertFloatToPrice(calculatedPrice), width/2 + 50, ypos-(yoffset + cameraOffset) + 30);
 
     //DRAW STOCK + PRICE % CHANGE
