@@ -13,6 +13,7 @@ ArrayList<Float> nodes = new ArrayList();
 
 void settings(){
     size(width,height);
+    //fullScreen();
 }
 
 void setup() {
@@ -64,7 +65,7 @@ void mouseWheel(MouseEvent event) {
 
 void keyPressed() {
     if(keyCode == 32){ // SPACE
-        filling = filling < 3 ? filling+1 : 0;
+        filling = filling < 4 ? filling+1 : 0;
     }else if(keyCode == 39){ // RIGHT ARROW
         colorIndex = colorIndex == colors.length-1 ? 0 : colorIndex+1;
     }else if(keyCode == 37){ // LEFT ARROW
@@ -75,17 +76,16 @@ void keyPressed() {
         scaleY -= 0.1;
     }else if(keyCode == 38){ // UP
         scaleY += 0.1;
-    }else if(keyCode == 17){
+    }else if(keyCode == 17){ // CTRL
         startingPrice = (nodes.get(0) - ypos)/priceChangeDivider + price;
         bottomLine = ypos;
-    }else if(keyCode == 16){
+    }else if(keyCode == 16){ // SHIFT
         hideBottom = !hideBottom;
     }
     //print(keyCode);
 }
 
-void repeatLine(color s, color e, float x, float y, float xx, float yy){
-    float scale = 75;
+void repeatLine(color s, color e, float scale, float x, float y, float xx, float yy){
     float m = strokeW;
     strokeWeight(strokeW*2.5);
     for (int i = 1; i < int(scale); i++) {
@@ -139,6 +139,62 @@ void drawFillOptimized(color c){
     shape(s);
 }
 
+float getHighestNode(){
+    float highscore = height;
+    for(int i = 0; i < nodes.size(); i++){
+        if((i > offsetIndex && hideEarlier) || width/2-(i*stretch)-xoffset < 0){
+            break;
+        }
+        if(nodes.get(i) < highscore){
+            highscore = nodes.get(i);
+        }
+    }
+    if(ypos < highscore){
+        highscore = ypos;
+    }
+    return highscore;
+}
+
+void drawGradient(color c1, color c2){
+
+    float x = 0;
+    float y = getHighestNode();
+    if(hideEarlier){
+        x = width/2-((offsetIndex+1)*stretch)-xoffset;
+    }
+
+    repeatLine(c1, c2, 130, x+7, y-(yoffset + cameraOffset), width/2-7, y-(yoffset + cameraOffset));
+
+    PShape s;
+    s = createShape();
+    s.beginShape();
+    s.fill(c2);
+    s.noStroke();
+    for(int i = 0; i < nodes.size(); i++){
+        int p = i+1;
+        if(i > offsetIndex && hideEarlier){
+            s.vertex(width/2-(i*stretch)-xoffset, 0);
+            s.vertex(width/2, 0);
+            s.vertex(width/2, ypos-(yoffset + cameraOffset));
+            break;
+        }
+        if(i == 0){
+            s.vertex(width/2-(p*stretch)-xoffset, (nodes.get(i)*scaleY)-(yoffset + cameraOffset));
+            s.vertex(width/2, ypos-(yoffset + cameraOffset));
+        }else{
+            s.vertex(width/2-((p-1)*stretch)-xoffset, (nodes.get(i-1)*scaleY)-(yoffset + cameraOffset));
+            s.vertex(width/2-(p*stretch)-xoffset, (nodes.get(i)*scaleY)-(yoffset + cameraOffset));
+        }
+        if(i == nodes.size()-1){
+            s.vertex(width/2-(i*stretch)-xoffset, 0);
+            s.vertex(width/2, 0);
+            s.vertex(width/2, ypos-(yoffset + cameraOffset));
+        }
+    }
+    s.endShape(CLOSE);
+    shape(s);
+}
+
 color divideColor(color c, float d){
     return color(red(c)*d,green(c)*d,blue(c)*d);
 }
@@ -177,13 +233,13 @@ void draw() {
             }
             if(i == 0){
                 if(filling == 1){
-                    repeatLine(divideColor(colors[colorIndex],m), color(0,0,0), width/2-(p*stretch)-xoffset, nodes.get(i)-(yoffset + cameraOffset), width/2-2, ypos-(yoffset + cameraOffset));
+                    repeatLine(divideColor(colors[colorIndex],m), color(0,0,0), 75, width/2-(p*stretch)-xoffset, nodes.get(i)-(yoffset + cameraOffset), width/2-2, ypos-(yoffset + cameraOffset));
                 }else{
                     drawFill(divideColor(colors[colorIndex],m), width/2-(p*stretch)-xoffset-(stretch>0 ? 1 : -1), nodes.get(i)-(yoffset + cameraOffset), width/2+1, ypos-(yoffset + cameraOffset));
                 }
             }else{
                 if(filling == 1){
-                    repeatLine(divideColor(colors[colorIndex],m), color(0,0,0), width/2-(p*stretch)-xoffset, nodes.get(i)-(yoffset + cameraOffset), width/2-((p-1)*stretch)-xoffset, nodes.get(i-1)-(yoffset + cameraOffset));
+                    repeatLine(divideColor(colors[colorIndex],m), color(0,0,0), 75, width/2-(p*stretch)-xoffset, nodes.get(i)-(yoffset + cameraOffset), width/2-((p-1)*stretch)-xoffset, nodes.get(i-1)-(yoffset + cameraOffset));
                 }else{
                     drawFill(divideColor(colors[colorIndex],m), width/2-(p*stretch)-xoffset-(stretch>0 ? 1 : -1), nodes.get(i)-(yoffset + cameraOffset), width/2-((p-1)*stretch)-xoffset, nodes.get(i-1)-(yoffset + cameraOffset));
                 }
@@ -191,6 +247,8 @@ void draw() {
         }
     }else if(filling == 2){
         drawFillOptimized(divideColor(colors[colorIndex],0.5));
+    }else if(filling == 4){
+        drawGradient(divideColor(colors[colorIndex],0.5), color(0,0,0));
     }
 
     //BOTTOM LINE
